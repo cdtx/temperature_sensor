@@ -13,18 +13,26 @@
 static const char *TAG = "am2320";
 static i2c_port_t i2c_master_num;
 
+static int16_t am2320_read_short(uint8_t index);
+
 static void am2320_wakeup() {
     // Send address
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, 0xB8, 0);
+    i2c_master_write_byte(cmd, 
+        AM2320_I2C_ADDRESS_WRITE, 
+        I2C_MASTER_NACK
+    );
+    // No error check, sensor is waking up, maybe result is unpredictable
     i2c_master_cmd_begin(i2c_master_num, cmd, 1000 / portTICK_RATE_MS);
+
     i2c_cmd_link_delete(cmd);
-    // Wait 1ms until sensor wakes up
+    // Wait 900us until sensor wakes up
     // vTaskDelay(1);
     cmd = i2c_cmd_link_create();
     i2c_master_stop(cmd);
     i2c_master_cmd_begin(i2c_master_num, cmd, 1000 / portTICK_RATE_MS);
+
     i2c_cmd_link_delete(cmd);
 }
 
@@ -33,27 +41,49 @@ void am2320_init(i2c_port_t i2c_num) {
     i2c_master_num = i2c_num;
 }
 
+int16_t am2320_read_humidity(void) {
+    return am2320_read_short(0x00);
+}
 int16_t am2320_read_temperature(void) {
+    return am2320_read_short(0x02);
+}
+
+int16_t am2320_read_short(uint8_t index) {
+    esp_err_t ret = ESP_OK;
+
     i2c_cmd_handle_t cmd;
     int16_t res = 0;
-    uint8_t data_write[4] = {0xb8, 0x03, 0x02, 0x02};
+    uint8_t data_write[4] = {0x00};
     uint8_t data_read[6] = {0,0,0,0,0,0};
+
+    // Set data to write
+    data_write[0] = AM2320_I2C_ADDRESS_WRITE;   // Device Address
+    data_write[1] = 0x03;   // Read
+    data_write[2] = index;  // Index to read at
+    data_write[3] = 0x02;   // Size to read
 
     am2320_wakeup();
 
     cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
-    i2c_master_write(cmd, data_write, 4, 0);
+    i2c_master_write(cmd, data_write, 4, I2C_MASTER_ACK);
     i2c_master_stop(cmd);
-    i2c_master_cmd_begin(i2c_master_num, cmd, 1000 / portTICK_RATE_MS);
+
+    ret = i2c_master_cmd_begin(i2c_master_num, cmd, 1000 / portTICK_RATE_MS);
+    ESP_ERROR_CHECK_WITHOUT_ABORT(ret);
+
     i2c_cmd_link_delete(cmd);
 
     cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, 0xb9, 0);
-    i2c_master_read(cmd, data_read, 6, 0);
+    i2c_master_write_byte(cmd, 
+        AM2320_I2C_ADDRESS_READ, 
+        I2C_MASTER_ACK
+    );
+    i2c_master_read(cmd, data_read, 6, I2C_MASTER_LAST_NACK);
     i2c_master_stop(cmd);
-    i2c_master_cmd_begin(i2c_master_num, cmd, 1000 / portTICK_RATE_MS);
+    ret = i2c_master_cmd_begin(i2c_master_num, cmd, 1000 / portTICK_RATE_MS);
+    ESP_ERROR_CHECK_WITHOUT_ABORT(ret);
 
     i2c_cmd_link_delete(cmd);
 

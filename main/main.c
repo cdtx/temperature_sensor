@@ -41,6 +41,7 @@ void i2c_master_delete(i2c_port_t i2c_num) {
 }
 
 void task_sensor_read(void *pvParameters) {
+    uint16_t humidity = 0;
     uint16_t temperature = 0;
 
     // Init esp8266 i2c driver
@@ -50,6 +51,10 @@ void task_sensor_read(void *pvParameters) {
     am2320_init(I2C_MASTER_NUM);
 
     while(1) {
+        humidity = am2320_read_humidity();
+        ESP_LOGI(TAG, "Read humidity: %d\n", humidity);
+        vTaskDelay(2500 / portTICK_RATE_MS);
+
         temperature = am2320_read_temperature();
         ESP_LOGI(TAG, "Read temperature: %d\n", temperature);
         vTaskDelay(2500 / portTICK_RATE_MS);
