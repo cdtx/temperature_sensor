@@ -13,7 +13,7 @@
 static const char *TAG = "am2320";
 static i2c_port_t i2c_master_num;
 
-static int16_t am2320_read_short(uint8_t index);
+static esp_err_t am2320_read_short(uint8_t index, int16_t *value);
 
 static void am2320_wakeup() {
     // Send address
@@ -41,18 +41,17 @@ void am2320_init(i2c_port_t i2c_num) {
     i2c_master_num = i2c_num;
 }
 
-int16_t am2320_read_humidity(void) {
-    return am2320_read_short(0x00);
+esp_err_t am2320_read_humidity(int16_t *p_value) {
+    return am2320_read_short(0x00, p_value);
 }
-int16_t am2320_read_temperature(void) {
-    return am2320_read_short(0x02);
+esp_err_t am2320_read_temperature(int16_t *p_value) {
+    return am2320_read_short(0x02, p_value);
 }
 
-int16_t am2320_read_short(uint8_t index) {
+esp_err_t am2320_read_short(uint8_t index, int16_t *p_value) {
     esp_err_t ret = ESP_OK;
 
     i2c_cmd_handle_t cmd;
-    int16_t res = 0;
     uint8_t data_write[4] = {0x00};
     uint8_t data_read[6] = {0,0,0,0,0,0};
 
@@ -69,7 +68,7 @@ int16_t am2320_read_short(uint8_t index) {
     i2c_master_write(cmd, data_write, 4, I2C_MASTER_ACK);
     i2c_master_stop(cmd);
 
-    ret = i2c_master_cmd_begin(i2c_master_num, cmd, 1000 / portTICK_RATE_MS);
+    ret |= i2c_master_cmd_begin(i2c_master_num, cmd, 1000 / portTICK_RATE_MS);
     ESP_ERROR_CHECK_WITHOUT_ABORT(ret);
 
     i2c_cmd_link_delete(cmd);
@@ -82,12 +81,12 @@ int16_t am2320_read_short(uint8_t index) {
     );
     i2c_master_read(cmd, data_read, 6, I2C_MASTER_LAST_NACK);
     i2c_master_stop(cmd);
-    ret = i2c_master_cmd_begin(i2c_master_num, cmd, 1000 / portTICK_RATE_MS);
+    ret |= i2c_master_cmd_begin(i2c_master_num, cmd, 1000 / portTICK_RATE_MS);
     ESP_ERROR_CHECK_WITHOUT_ABORT(ret);
 
     i2c_cmd_link_delete(cmd);
 
-    ESP_LOGI(TAG, "Read data: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x", 
+    ESP_LOGD(TAG, "Read data: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x", 
             data_read[0],
             data_read[1],
             data_read[2],
@@ -96,8 +95,11 @@ int16_t am2320_read_short(uint8_t index) {
             data_read[5]
     );
 
-    res = (data_read[2]<<8) + (data_read[3]);
+    // Leave p_value unchanged if an error occurs
+    if (ret == ESP_OK) {
+        *p_value = (data_read[2]<<8) + (data_read[3]);
+    }
 
-    return res;
+    return ret;
 }
 

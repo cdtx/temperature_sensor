@@ -6,7 +6,7 @@
 #define AM2320_I2C_ADDRESS_WRITE    ((AM2320_I2C_ADDRESS_BASE << 1) | I2C_MASTER_WRITE)
 
 void am2320_init(i2c_port_t i2c_num);
-int16_t am2320_read_humidity(void);
-int16_t am2320_read_temperature(void);
+esp_err_t am2320_read_humidity(int16_t *value);
+esp_err_t am2320_read_temperature(int16_t *value);
 
 #endif

@@ -33,7 +33,6 @@ void i2c_master_init(i2c_port_t i2c_num) {
 
     ESP_ERROR_CHECK(i2c_driver_install(i2c_num, I2C_MODE_MASTER));
     ESP_ERROR_CHECK(i2c_param_config(i2c_num, &conf));
-    return ESP_OK;
 }
 
 void i2c_master_delete(i2c_port_t i2c_num) {
@@ -41,8 +40,10 @@ void i2c_master_delete(i2c_port_t i2c_num) {
 }
 
 void task_sensor_read(void *pvParameters) {
-    uint16_t humidity = 0;
-    uint16_t temperature = 0;
+    esp_err_t ret = ESP_OK;
+
+    int16_t humidity = 0;
+    int16_t temperature = 0;
 
     // Init esp8266 i2c driver
     i2c_master_init(I2C_MASTER_NUM);
@@ -51,12 +52,22 @@ void task_sensor_read(void *pvParameters) {
     am2320_init(I2C_MASTER_NUM);
 
     while(1) {
-        humidity = am2320_read_humidity();
-        ESP_LOGI(TAG, "Read humidity: %d\n", humidity);
+        ret = am2320_read_humidity(&humidity);
+        if (ret == ESP_OK) {
+            ESP_LOGI(TAG, "Read humidity: %d", humidity);
+        }
+        else {
+            ESP_LOGE(TAG, "Error reading temperature: %s", esp_err_to_name(ret));
+        }
         vTaskDelay(2500 / portTICK_RATE_MS);
 
-        temperature = am2320_read_temperature();
-        ESP_LOGI(TAG, "Read temperature: %d\n", temperature);
+        ret = am2320_read_temperature(&temperature);
+        if (ret == ESP_OK) {
+            ESP_LOGI(TAG, "Read temperature: %d", temperature);
+        }
+        else {
+            ESP_LOGE(TAG, "Error reading humidity: %s", esp_err_to_name(ret));
+        }
         vTaskDelay(2500 / portTICK_RATE_MS);
     }
 
