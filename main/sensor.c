@@ -9,7 +9,7 @@
 #include "driver/i2c.h"
 #include "am2320.h"
 
-static const char *TAG = "main";
+static const char *TAG = "sensor.c";
 
 void task_sensor_read(void *pvParameters) {
     esp_err_t ret = ESP_OK;

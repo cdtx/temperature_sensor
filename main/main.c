@@ -12,6 +12,7 @@
 
 #include "driver/i2c.h"
 #include "sensor.h"
+#include "wifi.h"
 
 // ESP-01
 // Vert: GPIO0 -> SCL
@@ -72,7 +73,7 @@ void app_main()
     sensor_init();
 
     // Manage WiFi initialisation
-    // wifi_init();
+    wifi_init();
 
     // Manage MQTT init
     // mqtt_init();
