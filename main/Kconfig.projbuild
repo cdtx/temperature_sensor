@@ -1,0 +1,35 @@
+menu "Project configuration"
+    config PROJECT_I2C_MASTER_ID
+        int "I2C master id to initialize and use"
+        default 0
+
+    config PROJECT_WIFI_SSID
+        string "WiFi SSID"
+        default "myssid"
+        help
+            SSID (network name) for the example to connect to.
+
+    config PROJECT_WIFI_PASSWORD
+        string "WiFi Password"
+        default "mypassword"
+        help
+            WiFi password (WPA or WPA2) for the example to use.
+            Can be left blank if the network has no security set.
+
+    config PROJECT_MQTT_BROKER_URL
+        string "MQTT broker URL or IP"
+        default "192.168.0.1"
+
+    config PROJECT_MQTT_BROKER_USERNAME
+        string "MQTT broker username"
+        default "username"
+        help
+            Leave blank if broker has no authent
+
+    config PROJECT_MQTT_BROKER_PASSWORD
+        string "MQTT broker password"
+        default "password"
+        help
+            Leave blank if broker has no authent
+
+endmenu
