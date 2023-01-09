@@ -13,52 +13,29 @@
 
 static const char *TAG = "sensor.c";
 
-void am2320_value_to_string(int16_t value, char *out, int out_size) {
-    bool negative = value & 0x8000;
-    snprintf(out, out_size, "%s%d.%.1d",
-       negative ? "-":"", 
-       (value & 0x7FFF)/10,
-       (value & 0x7FFF) % 10
-    );
-}
-
-void task_sensor_read(void *pvParameters) {
+esp_err_t sensor_read(int16_t *temperature, int16_t *humidity) {
     esp_err_t ret = ESP_OK;
 
-    int16_t humidity = 0;
-    int16_t temperature = 0;
-    char value_str[10];
-
-    // Init am2320 sensor
-    am2320_init(CONFIG_PROJECT_I2C_MASTER_ID);
-    vTaskDelay(5000 / portTICK_RATE_MS);
-
-    while(1) {
-        ret = am2320_read_humidity(&humidity);
-        if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "Read humidity: %d", humidity);
-            am2320_value_to_string(humidity, value_str, sizeof(value_str));
-            mqtt_publish_humidity(value_str);
-        }
-        else {
-            ESP_LOGE(TAG, "Error reading temperature: %s", esp_err_to_name(ret));
-        }
-        vTaskDelay(2500 / portTICK_RATE_MS);
-
-        ret = am2320_read_temperature(&temperature);
-        if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "Read temperature: %d", temperature);
-            am2320_value_to_string(temperature, value_str, sizeof(value_str));
-            mqtt_publish_temperature(value_str);
-        }
-        else {
-            ESP_LOGE(TAG, "Error reading humidity: %s", esp_err_to_name(ret));
-        }
-        vTaskDelay(2500 / portTICK_RATE_MS);
+    ret = am2320_read_humidity(humidity);
+    if (ret == ESP_OK) {
+        ESP_LOGI(TAG, "Read humidity: %d", *humidity);
     }
+    else {
+        ESP_LOGE(TAG, "Error reading temperature: %s", esp_err_to_name(ret));
+    }
+    vTaskDelay(2500 / portTICK_RATE_MS);
+
+    ret = am2320_read_temperature(temperature);
+    if (ret == ESP_OK) {
+        ESP_LOGI(TAG, "Read temperature: %d", *temperature);
+    }
+    else {
+        ESP_LOGE(TAG, "Error reading humidity: %s", esp_err_to_name(ret));
+    }
+    return ESP_OK;
 }
 
 void sensor_init(void) {
-    xTaskCreate(task_sensor_read, "task_sensor_read", 2048, NULL, 10, NULL);
+    am2320_init(CONFIG_PROJECT_I2C_MASTER_ID);
 }
 
