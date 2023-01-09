@@ -12,8 +12,11 @@
 
 #include "mqtt.h"
 
+#include "hass_entities.h"
+
 static const char *TAG = "mqtt.c";
 
+static esp_mqtt_client_handle_t client;
 
 static void mqtt_event_handler_cb(
         void *handler_args,
@@ -29,9 +32,21 @@ static void mqtt_event_handler_cb(
         case MQTT_EVENT_CONNECTED:
             ESP_LOGD(TAG, "MQTT_EVENT_CONNECTED");
             // Build and publish home assistant discovery
-            // ESP_LOGI(TAG, "Publish sensor discovery");
-        // msg_id = esp_mqtt_client_publish(client, "<topic>", "<data>", <len>, <qos>, <retain>);
-            // ESP_LOGD(TAG, "sent publish successful, msg_id=%d", msg_id);
+            ESP_LOGI(TAG, "Publish temperature discovery");
+            msg_id = esp_mqtt_client_publish(
+                client,
+                HASS_ENTITY_TEMPERATURE_DISCOVERY_TOPIC,
+                HASS_ENTITY_TEMPERATURE_DISCOVERY_DATA,
+                0, 0, 0
+            );
+            ESP_LOGI(TAG, "Publish humidity discovery");
+            msg_id = esp_mqtt_client_publish(
+                client,
+                HASS_ENTITY_HUMIDITY_DISCOVERY_TOPIC,
+                HASS_ENTITY_HUMIDITY_DISCOVERY_DATA,
+                0, 0, 0
+            );
+            ESP_LOGD(TAG, "sent publish successful, msg_id=%d", msg_id);
             break;
         case MQTT_EVENT_ERROR:
             ESP_LOGE(TAG, "MQTT_EVENT_ERROR");
@@ -42,7 +57,6 @@ static void mqtt_event_handler_cb(
     }
 }
 
-
 void mqtt_init(void) {
     esp_mqtt_client_config_t mqtt_cfg = {
         .uri = CONFIG_PROJECT_MQTT_BROKER_URL,
@@ -50,7 +64,29 @@ void mqtt_init(void) {
         .password = CONFIG_PROJECT_MQTT_BROKER_PASSWORD,
     };
 
-    esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
+    client = esp_mqtt_client_init(&mqtt_cfg);
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler_cb, client);
     esp_mqtt_client_start(client);
+}
+
+esp_err_t mqtt_publish_temperature(char *value_str) {
+    esp_mqtt_client_publish(
+        client,
+        HASS_ENTITY_TEMPERATURE_PUBLISH_TOPIC,
+        value_str,
+        0, 0, 1
+    );
+
+    return ESP_OK;
+}
+
+esp_err_t mqtt_publish_humidity(char *value_str) {
+    esp_mqtt_client_publish(
+        client,
+        HASS_ENTITY_HUMIDITY_PUBLISH_TOPIC,
+        value_str,
+        0, 0, 1
+    );
+
+    return ESP_OK;
 }

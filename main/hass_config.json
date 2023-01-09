@@ -1,0 +1,23 @@
+{
+    "device": {
+        "identifiers": "71920d38-3717-4d34-b7ad-48f77c00de00",
+        "manufacturer": "cdtx",
+        "model": "Temperature sensor"
+    },
+    "entities": [
+        {
+            "name": "temperature",
+            "unique_id": "301263a6-c29e-47c7-b4bb-8ee5304b342c",
+            "component": "sensor",
+            "state_topic": "cdtx/Temperature sensor/71920d38-3717-4d34-b7ad-48f77c00de00/temperature",
+            "unit_of_measurement": "\u00b0C"
+        },
+        {
+            "name": "humidity",
+            "unique_id": "98ade780-2dde-4afc-aef5-0a6f212fc255",
+            "component": "sensor",
+            "state_topic": "cdtx/Temperature sensor/71920d38-3717-4d34-b7ad-48f77c00de00/humidity",
+            "unit_of_measurement": "%"
+        }
+    ]
+}
