@@ -11,7 +11,8 @@
 #include "nvs_flash.h"
 
 #include "driver/i2c.h"
-#include "sensor.h"
+
+#include "am2320.h"
 #include "wifi.h"
 #include "mqtt.h"
 
@@ -88,7 +89,7 @@ void app_main()
     ESP_ERROR_CHECK(nvs_flash_init());
 
     // Run temperature acquisition
-    sensor_init();
+    am2320_init(CONFIG_PROJECT_I2C_MASTER_ID);
 
     // Manage WiFi initialisation
     wifi_init();
@@ -99,14 +100,16 @@ void app_main()
     vTaskDelay(5000 / portTICK_RATE_MS);
 
     while(1) {
-        sensor_read(&temperature, &humidity);
+        am2320_read_values(&temperature, &humidity);
 
         // Temperature
         value_to_string(temperature, value_str, sizeof(value_str));
+        ESP_LOGI(TAG, "Temperature value: %s", value_str);
         mqtt_publish_temperature(value_str);
 
         // Humidity
         value_to_string(humidity, value_str, sizeof(value_str));
+        ESP_LOGI(TAG, "Humidity value: %s", value_str);
         mqtt_publish_humidity(value_str);
 
         vTaskDelay(2500 / portTICK_RATE_MS);

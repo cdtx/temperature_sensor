@@ -14,15 +14,11 @@
 void am2320_init(i2c_port_t i2c_num);
 
 /**
- *  \brief Read humidity value as sent by the sensor
- *  \return 10*humidity value.
+ *  \brief Read temperature and humidity values as sent by the sensor
+ *  \param temperature pointer to int16_t for temperature
+ *  \param humidity pointer to int16_t for humidity
+ *  \return ESP_OK if ok
  */
-esp_err_t am2320_read_humidity(int16_t *value);
-
-/**
- *  \brief Read temperature value as sent by the sensor
- *  \return 10*temperature value.
- */
-esp_err_t am2320_read_temperature(int16_t *value);
+esp_err_t am2320_read_values(int16_t *temperature, int16_t *humidity);
 
 #endif
