@@ -12,10 +12,13 @@
 
 #include "mqtt.h"
 
+#include "project_config.h"
+
 #include "hass_entities.h"
 
 static const char *TAG = "mqtt.c";
 
+static EventGroupHandle_t main_event_group;
 static esp_mqtt_client_handle_t client;
 
 static void mqtt_event_handler_cb(
@@ -30,7 +33,7 @@ static void mqtt_event_handler_cb(
     // your_context_t *context = event->context;
     switch (event_id) {
         case MQTT_EVENT_CONNECTED:
-            ESP_LOGD(TAG, "MQTT_EVENT_CONNECTED");
+            ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
             // Build and publish home assistant discovery
             ESP_LOGI(TAG, "Publish temperature discovery");
             msg_id = esp_mqtt_client_publish(
@@ -47,6 +50,20 @@ static void mqtt_event_handler_cb(
                 0, 0, 0
             );
             ESP_LOGD(TAG, "sent publish successful, msg_id=%d", msg_id);
+            // Declare the MQTT module as enabled
+            xEventGroupSetBits(
+                main_event_group,
+                PROJECT_MQTT_ENABLED
+            );
+            break;
+        case MQTT_EVENT_DISCONNECTED:
+            ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
+            // Declare the MQTT module as disabled
+            xEventGroupClearBits(
+                main_event_group,
+                PROJECT_MQTT_ENABLED
+            );
+            
             break;
         case MQTT_EVENT_ERROR:
             ESP_LOGE(TAG, "MQTT_EVENT_ERROR");
@@ -57,7 +74,9 @@ static void mqtt_event_handler_cb(
     }
 }
 
-void mqtt_init(void) {
+void mqtt_init(EventGroupHandle_t event_group) {
+    main_event_group = event_group;
+
     esp_mqtt_client_config_t mqtt_cfg = {
         .uri = CONFIG_PROJECT_MQTT_BROKER_URL,
         .username = CONFIG_PROJECT_MQTT_BROKER_USERNAME,

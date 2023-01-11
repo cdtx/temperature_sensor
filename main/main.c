@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
 #include "freertos/task.h"
 
 #include "esp_log.h"
@@ -16,6 +17,8 @@
 #include "wifi.h"
 #include "mqtt.h"
 
+#include "project_config.h"
+
 // ESP-01
 // Vert: GPIO0 -> SCL
 // Jaune: GPIO2 -> SDA
@@ -24,6 +27,8 @@
 #define I2C_MASTER_SDA_IO           2                /*!< gpio number for I2C master data  */
 
 static const char *TAG = "main";
+
+static EventGroupHandle_t main_event_group;
 
 /**
  *  \brief Create signed decimal string from int16_t
@@ -51,26 +56,27 @@ void i2c_master_init() {
 
     ESP_ERROR_CHECK(
         i2c_driver_install(
-            CONFIG_PROJECT_I2C_MASTER_ID, 
+            PROJECT_I2C_MASTER_ID, 
             I2C_MODE_MASTER
         )
     );
     ESP_ERROR_CHECK(
         i2c_param_config(
-            CONFIG_PROJECT_I2C_MASTER_ID, 
+            PROJECT_I2C_MASTER_ID, 
             &conf
         )
     );
 }
 
 void i2c_master_delete() {
-    i2c_driver_delete(CONFIG_PROJECT_I2C_MASTER_ID);
+    i2c_driver_delete(PROJECT_I2C_MASTER_ID);
 }
 
 void app_main()
 {
     int16_t temperature, humidity;
     char value_str[10];
+    EventBits_t uxBits;
 
     ESP_LOGI(TAG, "[APP] Startup..");
     ESP_LOGI(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
@@ -78,6 +84,9 @@ void app_main()
 
     // Configure log levels
     esp_log_level_set("*", ESP_LOG_INFO);
+
+    // Initialize the statusGroup for this main
+    main_event_group = xEventGroupCreate();
 
     // Init esp8266 i2c driver
     i2c_master_init();
@@ -88,18 +97,33 @@ void app_main()
     // Initialize nvs, only once
     ESP_ERROR_CHECK(nvs_flash_init());
 
-    // Run temperature acquisition
-    am2320_init(CONFIG_PROJECT_I2C_MASTER_ID);
-
     // Manage WiFi initialisation
-    wifi_init();
+    wifi_init(main_event_group);
 
+    ESP_LOGI(TAG, "Wait for WiFi to be ready");
+    uxBits = xEventGroupWaitBits(
+        main_event_group,
+        PROJECT_WIFI_ENABLED,
+        pdFALSE,
+        pdTRUE,
+        -1
+    );
     // Manage MQTT init
-    mqtt_init();
+    mqtt_init(main_event_group);
 
-    vTaskDelay(5000 / portTICK_RATE_MS);
+    // Run temperature acquisition
+    am2320_init(PROJECT_I2C_MASTER_ID);
 
     while(1) {
+        ESP_LOGD(TAG, "Wait for WiFi and MQTT init");
+        uxBits = xEventGroupWaitBits(
+            main_event_group,
+            PROJECT_WIFI_ENABLED | PROJECT_MQTT_ENABLED,
+            pdFALSE,
+            pdTRUE,
+            -1
+        );
+        ESP_LOGD(TAG, "Wifi and MQTT initialized");
         am2320_read_values(&temperature, &humidity);
 
         // Temperature
@@ -114,5 +138,8 @@ void app_main()
 
         vTaskDelay(2500 / portTICK_RATE_MS);
     }
+
+    i2c_master_delete();
+    vEventGroupDelete(main_event_group);
 }
 

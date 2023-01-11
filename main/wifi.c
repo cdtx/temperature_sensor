@@ -12,6 +12,8 @@
 
 #include "wifi.h"
 
+#include "project_config.h"
+
 /* The event group allows multiple bits for each event, but we only care about two events:
  * - we are connected to the AP with an IP
  * - we failed to connect after the maximum amount of retries */
@@ -20,6 +22,7 @@
 
 static const char *TAG = "wifi.c";
 static int s_retry_num = 0;
+static EventGroupHandle_t main_event_group;
 static EventGroupHandle_t s_wifi_event_group;
 
 
@@ -47,7 +50,9 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 }
 
 
-void wifi_init(void) {
+void wifi_init(EventGroupHandle_t event_group) {
+    main_event_group = event_group;
+
     s_wifi_event_group = xEventGroupCreate();
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -90,6 +95,11 @@ void wifi_init(void) {
     if (bits & WIFI_CONNECTED_BIT) {
         ESP_LOGD(TAG, "connected to ap SSID:%s password:%s",
                  CONFIG_PROJECT_WIFI_SSID, CONFIG_PROJECT_WIFI_PASSWORD);
+        // Declare the WiFi as enabled
+        xEventGroupSetBits(
+            main_event_group,
+            PROJECT_WIFI_ENABLED
+        );
     } else if (bits & WIFI_FAIL_BIT) {
         ESP_LOGD(TAG, "Failed to connect to SSID:%s, password:%s",
                  CONFIG_PROJECT_WIFI_SSID, CONFIG_PROJECT_WIFI_PASSWORD);

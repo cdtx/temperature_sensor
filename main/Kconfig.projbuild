@@ -1,8 +1,4 @@
 menu "Project configuration"
-    config PROJECT_I2C_MASTER_ID
-        int "I2C master id to initialize and use"
-        default 0
-
     config PROJECT_WIFI_SSID
         string "WiFi SSID"
         default "myssid"
