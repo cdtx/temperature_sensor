@@ -74,7 +74,7 @@ static void mqtt_event_handler_cb(
     }
 }
 
-void mqtt_init(EventGroupHandle_t event_group) {
+esp_err_t mqtt_init(EventGroupHandle_t event_group) {
     main_event_group = event_group;
 
     esp_mqtt_client_config_t mqtt_cfg = {
@@ -86,6 +86,15 @@ void mqtt_init(EventGroupHandle_t event_group) {
     client = esp_mqtt_client_init(&mqtt_cfg);
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler_cb, client);
     esp_mqtt_client_start(client);
+    return ESP_OK;
+}
+
+esp_err_t mqtt_stop() {
+    xEventGroupClearBits(
+        main_event_group,
+        PROJECT_MQTT_ENABLED
+    );
+    return esp_mqtt_client_stop(client);   
 }
 
 esp_err_t mqtt_publish_temperature(char *value_str) {
@@ -109,3 +118,4 @@ esp_err_t mqtt_publish_humidity(char *value_str) {
 
     return ESP_OK;
 }
+

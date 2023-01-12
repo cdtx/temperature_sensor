@@ -50,7 +50,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 }
 
 
-void wifi_init(EventGroupHandle_t event_group) {
+esp_err_t wifi_init(EventGroupHandle_t event_group) {
     main_event_group = event_group;
 
     s_wifi_event_group = xEventGroupCreate();
@@ -111,4 +111,15 @@ void wifi_init(EventGroupHandle_t event_group) {
     ESP_ERROR_CHECK(esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler));
     vEventGroupDelete(s_wifi_event_group);
 
+    return ESP_OK;
 }
+
+esp_err_t wifi_stop(void) {
+    xEventGroupClearBits(
+        main_event_group,
+        PROJECT_WIFI_ENABLED
+    );
+    return esp_wifi_stop();
+}
+
+

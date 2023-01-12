@@ -5,6 +5,7 @@
 
 #include "esp_log.h"
 #include "esp_system.h"
+#include "esp_sleep.h"
 #include "esp_err.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
@@ -136,7 +137,15 @@ void app_main()
         ESP_LOGI(TAG, "Humidity value: %s", value_str);
         mqtt_publish_humidity(value_str);
 
-        vTaskDelay(2500 / portTICK_RATE_MS);
+        // Stop MQTT and WiFi before entering deep sleep
+        mqtt_stop();
+        wifi_stop();
+
+        ESP_LOGI(TAG, "Entering deep sleep");
+        // Enter deep sleep, the device resets on wake-up
+        // Radio calibration will not be done after the deep-sleep wakeup. This will lead to weaker current.
+        esp_deep_sleep_set_rf_option(2);
+        esp_deep_sleep(10 * 1e6);
     }
 
     i2c_master_delete();
