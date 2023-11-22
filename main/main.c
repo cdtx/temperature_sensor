@@ -26,6 +26,12 @@
 
 #define I2C_MASTER_SCL_IO           0                /*!< gpio number for I2C master clock */
 #define I2C_MASTER_SDA_IO           2                /*!< gpio number for I2C master data  */
+#define DEEP_SLEEP_TIME_US (CONFIG_PROJECT_SLEEP_TIME * 1e6)
+
+#define TEMPERATURE_MIN (-50 * 10)
+#define TEMPERATURE_MAX (100 * 10)
+#define HUMIDITY_MIN    (0 * 10)
+#define HUMIDITY_MAX    (100 * 10)
 
 static const char *TAG = "main";
 
@@ -43,6 +49,14 @@ void value_to_string(int16_t value, char *out, int out_size) {
        (value & 0x7FFF)/10,
        (value & 0x7FFF) % 10
     );
+}
+
+void go_deep_sleep(void) {
+    ESP_LOGI(TAG, "Entering deep sleep");
+    // Enter deep sleep, the device resets on wake-up
+    // Radio calibration will not be done after the deep-sleep wakeup. This will lead to weaker current.
+    esp_deep_sleep_set_rf_option(2);
+    esp_deep_sleep(DEEP_SLEEP_TIME_US);
 }
 
 void i2c_master_init() {
@@ -107,8 +121,14 @@ void app_main()
         PROJECT_WIFI_ENABLED,
         pdFALSE,
         pdTRUE,
-        -1
+        2000 / portTICK_PERIOD_MS   // Give the WiFi 2s to become ready
     );
+
+    if((uxBits & PROJECT_WIFI_ENABLED) != PROJECT_WIFI_ENABLED) {
+        ESP_LOGE(TAG, "Unable to connect WiFi");
+        go_deep_sleep();
+    }
+
     // Manage MQTT init
     mqtt_init(main_event_group);
 
@@ -116,36 +136,48 @@ void app_main()
     am2320_init(PROJECT_I2C_MASTER_ID);
 
     while(1) {
-        ESP_LOGD(TAG, "Wait for WiFi and MQTT init");
+        ESP_LOGD(TAG, "Wait for MQTT init");
         uxBits = xEventGroupWaitBits(
             main_event_group,
-            PROJECT_WIFI_ENABLED | PROJECT_MQTT_ENABLED,
+            PROJECT_MQTT_ENABLED,
             pdFALSE,
             pdTRUE,
-            -1
+            100 / portTICK_PERIOD_MS    // Give mqtt 100ms to be established
         );
+    
+        if((uxBits & PROJECT_MQTT_ENABLED) != PROJECT_MQTT_ENABLED) {
+            ESP_LOGE(TAG, "Unable to connect MQTT");
+            go_deep_sleep();
+        }
+
         ESP_LOGD(TAG, "Wifi and MQTT initialized");
         am2320_read_values(&temperature, &humidity);
 
-        // Temperature
-        value_to_string(temperature, value_str, sizeof(value_str));
-        ESP_LOGI(TAG, "Temperature value: %s", value_str);
-        mqtt_publish_temperature(value_str);
+        if((temperature >= TEMPERATURE_MIN) && (temperature <= TEMPERATURE_MAX)) {
+            // Temperature
+            value_to_string(temperature, value_str, sizeof(value_str));
+            ESP_LOGI(TAG, "Temperature value: %s", value_str);
+            mqtt_publish_temperature(value_str);
+        }
+        else {
+            ESP_LOGE(TAG, "Temperature out of bounds (%d)", temperature);
+        }
 
-        // Humidity
-        value_to_string(humidity, value_str, sizeof(value_str));
-        ESP_LOGI(TAG, "Humidity value: %s", value_str);
-        mqtt_publish_humidity(value_str);
+        if((humidity >= HUMIDITY_MIN) && (humidity <= HUMIDITY_MAX)) {
+            // Humidity
+            value_to_string(humidity, value_str, sizeof(value_str));
+            ESP_LOGI(TAG, "Humidity value: %s", value_str);
+            mqtt_publish_humidity(value_str);
+        }
+        else {
+            ESP_LOGE(TAG, "Humidity out of bounds (%d)", humidity);
+        }
 
         // Stop MQTT and WiFi before entering deep sleep
         mqtt_stop();
         wifi_stop();
 
-        ESP_LOGI(TAG, "Entering deep sleep");
-        // Enter deep sleep, the device resets on wake-up
-        // Radio calibration will not be done after the deep-sleep wakeup. This will lead to weaker current.
-        esp_deep_sleep_set_rf_option(2);
-        esp_deep_sleep(10 * 1e6);
+        go_deep_sleep();
     }
 
     i2c_master_delete();

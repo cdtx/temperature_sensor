@@ -28,4 +28,10 @@ menu "Project configuration"
         help
             Leave blank if broker has no authent
 
+    config PROJECT_SLEEP_TIME
+        int "Periodical deep sleep"
+        default 60
+        help
+            Value in seconds
+
 endmenu
