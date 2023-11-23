@@ -89,6 +89,7 @@ void i2c_master_delete() {
 
 void app_main()
 {
+    esp_err_t ret;
     int16_t temperature, humidity;
     char value_str[10];
     EventBits_t uxBits;
@@ -151,7 +152,12 @@ void app_main()
         }
 
         ESP_LOGD(TAG, "Wifi and MQTT initialized");
-        am2320_read_values(&temperature, &humidity);
+
+        ret = am2320_read_values(&temperature, &humidity);
+        if(ret != ESP_OK) {
+            ESP_LOGE(TAG, "am2320_read_values failed");
+            go_deep_sleep();
+        }
 
         if((temperature >= TEMPERATURE_MIN) && (temperature <= TEMPERATURE_MAX)) {
             // Temperature

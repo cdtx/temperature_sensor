@@ -34,6 +34,25 @@ static void am2320_wakeup() {
     i2c_cmd_link_delete(cmd);
 }
 
+static uint16_t compute_crc(uint8_t *ptr, uint8_t len) {
+    uint16_t crc =0xFFFF;
+    uint8_t i;
+
+    while(len--) {
+        crc ^= *ptr++;
+        for(i=0 ; i<8 ; i++) {
+            if(crc & 0x01) {
+                crc >>= 1;
+                crc ^= 0xA001;
+            }
+            else {
+                crc >>= 1;
+            }
+        }
+    }
+    ESP_LOGD(TAG, "Computed crc: %.4x", crc);
+    return crc;
+}
 
 void am2320_init(i2c_port_t i2c_num) {
     i2c_master_num = i2c_num;
@@ -45,6 +64,7 @@ esp_err_t am2320_read_values(int16_t *p_temperature, int16_t *p_humidity) {
     i2c_cmd_handle_t cmd;
     uint8_t data_write[4] = {0x00};
     uint8_t data_read[8] = {0,0,0,0,0,0,0,0};
+    uint16_t crc;
 
     // Set data to write
     data_write[0] = AM2320_I2C_ADDRESS_WRITE;   // Device Address
@@ -87,6 +107,12 @@ esp_err_t am2320_read_values(int16_t *p_temperature, int16_t *p_humidity) {
             data_read[6],
             data_read[7]
     );
+
+    // Check CRC (low byte first in frame)
+    crc = (data_read[7]<<8) + (data_read[6]);
+    if(crc != compute_crc(data_read, 6)) {
+        return ESP_FAIL;
+    }
 
     // Leave p_value unchanged if an error occurs
     if (ret == ESP_OK) {
