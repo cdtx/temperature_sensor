@@ -53,6 +53,10 @@ void value_to_string(int16_t value, char *out, int out_size) {
 
 void go_deep_sleep(void) {
     ESP_LOGI(TAG, "Entering deep sleep");
+    // Stop MQTT and WiFi before entering deep sleep
+    i2c_master_delete();
+    mqtt_stop();
+    wifi_stop();
     // Enter deep sleep, the device resets on wake-up
     // Radio calibration will not be done after the deep-sleep wakeup. This will lead to weaker current.
     esp_deep_sleep_set_rf_option(2);
@@ -67,7 +71,7 @@ void i2c_master_init() {
     conf.sda_pullup_en = 1;
     conf.scl_io_num = I2C_MASTER_SCL_IO;
     conf.scl_pullup_en = 1;
-    conf.clk_stretch_tick = 1000; // 1000 ticks, Clock stretch is about 210us, you can make changes according to the actual situation.
+    conf.clk_stretch_tick = 300; // 1000 ticks, Clock stretch is about 210us, you can make changes according to the actual situation.
 
     ESP_ERROR_CHECK(
         i2c_driver_install(
@@ -106,6 +110,17 @@ void app_main()
 
     // Init esp8266 i2c driver
     i2c_master_init();
+
+    // Init temperature acquisition
+    am2320_init(PROJECT_I2C_MASTER_ID);
+
+    // Read sensor
+    ret = am2320_read_values(&temperature, &humidity);
+    if(ret != ESP_OK) {
+        ESP_LOGE(TAG, "am2320_read_values failed");
+        go_deep_sleep();
+    }
+    // If here; the sensor read succeeds, prepare sending it.
     // Initialize tcpip stack, only once
     tcpip_adapter_init();
     // Initialize event loop, only once
@@ -133,60 +148,44 @@ void app_main()
     // Manage MQTT init
     mqtt_init(main_event_group);
 
-    // Run temperature acquisition
-    am2320_init(PROJECT_I2C_MASTER_ID);
+    ESP_LOGD(TAG, "Wait for MQTT init");
+    uxBits = xEventGroupWaitBits(
+        main_event_group,
+        PROJECT_MQTT_ENABLED,
+        pdFALSE,
+        pdTRUE,
+        100 / portTICK_PERIOD_MS    // Give mqtt 100ms to be established
+    );
 
-    while(1) {
-        ESP_LOGD(TAG, "Wait for MQTT init");
-        uxBits = xEventGroupWaitBits(
-            main_event_group,
-            PROJECT_MQTT_ENABLED,
-            pdFALSE,
-            pdTRUE,
-            100 / portTICK_PERIOD_MS    // Give mqtt 100ms to be established
-        );
-    
-        if((uxBits & PROJECT_MQTT_ENABLED) != PROJECT_MQTT_ENABLED) {
-            ESP_LOGE(TAG, "Unable to connect MQTT");
-            go_deep_sleep();
-        }
-
-        ESP_LOGD(TAG, "Wifi and MQTT initialized");
-
-        ret = am2320_read_values(&temperature, &humidity);
-        if(ret != ESP_OK) {
-            ESP_LOGE(TAG, "am2320_read_values failed");
-            go_deep_sleep();
-        }
-
-        if((temperature >= TEMPERATURE_MIN) && (temperature <= TEMPERATURE_MAX)) {
-            // Temperature
-            value_to_string(temperature, value_str, sizeof(value_str));
-            ESP_LOGI(TAG, "Temperature value: %s", value_str);
-            mqtt_publish_temperature(value_str);
-        }
-        else {
-            ESP_LOGE(TAG, "Temperature out of bounds (%d)", temperature);
-        }
-
-        if((humidity >= HUMIDITY_MIN) && (humidity <= HUMIDITY_MAX)) {
-            // Humidity
-            value_to_string(humidity, value_str, sizeof(value_str));
-            ESP_LOGI(TAG, "Humidity value: %s", value_str);
-            mqtt_publish_humidity(value_str);
-        }
-        else {
-            ESP_LOGE(TAG, "Humidity out of bounds (%d)", humidity);
-        }
-
-        // Stop MQTT and WiFi before entering deep sleep
-        mqtt_stop();
-        wifi_stop();
-
+    if((uxBits & PROJECT_MQTT_ENABLED) != PROJECT_MQTT_ENABLED) {
+        ESP_LOGE(TAG, "Unable to connect MQTT");
         go_deep_sleep();
     }
 
-    i2c_master_delete();
+    ESP_LOGD(TAG, "Wifi and MQTT initialized");
+
+    if((temperature >= TEMPERATURE_MIN) && (temperature <= TEMPERATURE_MAX)) {
+        // Temperature
+        value_to_string(temperature, value_str, sizeof(value_str));
+        ESP_LOGI(TAG, "Temperature value: %s", value_str);
+        mqtt_publish_temperature(value_str);
+    }
+    else {
+        ESP_LOGE(TAG, "Temperature out of bounds (%d)", temperature);
+    }
+
+    if((humidity >= HUMIDITY_MIN) && (humidity <= HUMIDITY_MAX)) {
+        // Humidity
+        value_to_string(humidity, value_str, sizeof(value_str));
+        ESP_LOGI(TAG, "Humidity value: %s", value_str);
+        mqtt_publish_humidity(value_str);
+    }
+    else {
+        ESP_LOGE(TAG, "Humidity out of bounds (%d)", humidity);
+    }
+
     vEventGroupDelete(main_event_group);
+
+    go_deep_sleep();
 }
 
