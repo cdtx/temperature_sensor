@@ -144,6 +144,8 @@ void app_main()
 
     // Init spiffs
     spiffs_init();
+
+    go_deep_sleep();
     
     // Init esp8266 i2c driver
     i2c_master_init();
