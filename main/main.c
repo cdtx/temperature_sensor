@@ -11,6 +11,7 @@
 #include "esp_wifi.h"
 #include "nvs.h"
 #include "nvs_flash.h"
+#include "esp_spiffs.h"
 
 #include "driver/i2c.h"
 
@@ -33,6 +34,8 @@
 #define HUMIDITY_MIN    (0 * 10)
 #define HUMIDITY_MAX    (100 * 10)
 
+
+
 static const char *TAG = "main";
 
 static EventGroupHandle_t main_event_group;
@@ -51,16 +54,35 @@ void value_to_string(int16_t value, char *out, int out_size) {
     );
 }
 
-void go_deep_sleep(void) {
-    ESP_LOGI(TAG, "Entering deep sleep");
-    // Stop MQTT and WiFi before entering deep sleep
-    i2c_master_delete();
-    mqtt_stop();
-    wifi_stop();
-    // Enter deep sleep, the device resets on wake-up
-    // Radio calibration will not be done after the deep-sleep wakeup. This will lead to weaker current.
-    esp_deep_sleep_set_rf_option(2);
-    esp_deep_sleep(DEEP_SLEEP_TIME_US);
+esp_err_t spiffs_init() {
+    esp_err_t ret;
+    esp_vfs_spiffs_conf_t conf;
+
+    size_t total_bytes, used_bytes;
+
+    // Initialize spiffs
+    ESP_LOGI(TAG, "Configuring spiffs");
+    conf.base_path = "/spiffs";
+    conf.partition_label = NULL;
+    conf.max_files = 5;
+    conf.format_if_mount_failed = false;
+
+    ret = esp_vfs_spiffs_register(&conf);
+    if(ret != ESP_OK) {
+        ESP_LOGE(TAG, "spiffs configuration failed [%d]", ret);
+        return ESP_FAIL;
+    }
+
+    // Collect spiffs infos
+    ret = esp_spiffs_info(NULL, &total_bytes, &used_bytes);
+    if(ret != ESP_OK) {
+        ESP_LOGE(TAG, "Collect spiffs infos failed [%d]", ret);
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "SPIFFS infos : total:%d, used:%d", total_bytes, used_bytes);
+
+    return ESP_OK;
 }
 
 void i2c_master_init() {
@@ -91,6 +113,18 @@ void i2c_master_delete() {
     i2c_driver_delete(PROJECT_I2C_MASTER_ID);
 }
 
+void go_deep_sleep(void) {
+    ESP_LOGI(TAG, "Entering deep sleep");
+    // Stop MQTT and WiFi before entering deep sleep
+    i2c_master_delete();
+    mqtt_stop();
+    wifi_stop();
+    // Enter deep sleep, the device resets on wake-up
+    // Radio calibration will not be done after the deep-sleep wakeup. This will lead to weaker current.
+    esp_deep_sleep_set_rf_option(2);
+    esp_deep_sleep(DEEP_SLEEP_TIME_US);
+}
+
 void app_main()
 {
     esp_err_t ret;
@@ -108,8 +142,13 @@ void app_main()
     // Initialize the statusGroup for this main
     main_event_group = xEventGroupCreate();
 
+    // Init spiffs
+    spiffs_init();
+    
     // Init esp8266 i2c driver
     i2c_master_init();
+
+    go_deep_sleep();
 
     // Init temperature acquisition
     am2320_init(PROJECT_I2C_MASTER_ID);
