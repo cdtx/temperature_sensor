@@ -24,3 +24,29 @@
 ``` bash
     $ make
 ```
+
+# spiffs
+
+The sensor compute and maintain its home assistant entity uids in spiffs files.
+
+Those file live in a dedicated partition (see partition.csv)
+
+A first image of this partition have to be built and loaded
+
+## Create content
+
+
+
+## Build image
+
+``` bash
+# Build a spiffs image with size 0x4000 from thespiffs folder
+python <>/spiffsgen.py 0x4000 spiffs spiffs.bin
+```
+
+## Load image
+
+``` bash
+# Load the spiffs image
+python <>/esptool.py --chip esp8266 --port /dev/ttyACM0 write_flash -z 0xfc000 spiffs.bin
+```
