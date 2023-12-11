@@ -58,7 +58,7 @@ Then, another time to generate the spiffs folder
 
 ``` bash
     # Build a spiffs image with size 0x4000 from thespiffs folder
-    python <>/spiffsgen.py 0x4000 spiffs spiffs.bin
+    ./spiffsgen.py --page-size 256 --block-size 8192 --no-magic-len --aligned-obj-ix-tables --meta-len=0  0x4000  out out.img
 ```
 
 ## Load image

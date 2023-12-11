@@ -14,12 +14,52 @@
 
 #include "project_config.h"
 
-#include "hass_entities.h"
-
 static const char *TAG = "mqtt.c";
 
 static EventGroupHandle_t main_event_group;
 static esp_mqtt_client_handle_t client;
+
+static void publish_discovery(const char *entity_name) {
+    int msg_id;
+    char file_name[40];
+    FILE *discovery_file_hdl;
+
+    char discovery_topic[100];
+    char discovery_data[500];
+
+    // Read discovery topic in file
+    sprintf(file_name, "/spiffs/%s_DT", entity_name);
+    ESP_LOGI(TAG, "discovery topic file name: %s", file_name);
+    discovery_file_hdl = fopen(file_name, "r");
+    if(discovery_file_hdl == NULL) {
+        ESP_LOGE(TAG, "Error while opening file");
+        return;
+    }
+    fgets(discovery_topic, sizeof(discovery_topic), discovery_file_hdl);
+    fclose(discovery_file_hdl);
+    ESP_LOGI(TAG, "discovery topic: %s", discovery_topic);
+
+    // Read discovery data in file
+    sprintf(file_name, "/spiffs/%s_DD", entity_name);
+    ESP_LOGI(TAG, "discovery data file name: %s", file_name);
+    discovery_file_hdl = fopen(file_name, "r");
+    if(discovery_file_hdl == NULL) {
+        ESP_LOGE(TAG, "Error while opening file");
+        return;
+    }
+    fgets(discovery_data, sizeof(discovery_data), discovery_file_hdl);
+    fclose(discovery_file_hdl);
+    ESP_LOGI(TAG, "discovery data: %s (%d)", discovery_data, sizeof(discovery_data));
+
+    ESP_LOGI(TAG, "Publish %s discovery", entity_name);
+    msg_id = esp_mqtt_client_publish(
+        client,
+        discovery_topic,
+        discovery_data,
+        0, 0, 0
+    );
+    ESP_LOGD(TAG, "sent publish successful, msg_id=%d", msg_id);
+}
 
 static void mqtt_event_handler_cb(
         void *handler_args,
@@ -29,27 +69,14 @@ static void mqtt_event_handler_cb(
 
     esp_mqtt_event_handle_t mqtt_event = (esp_mqtt_event_handle_t)event;
     esp_mqtt_client_handle_t client = mqtt_event->client;
-    int msg_id;
     // your_context_t *context = event->context;
     switch (event_id) {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
             // Build and publish home assistant discovery
-            ESP_LOGI(TAG, "Publish temperature discovery");
-            msg_id = esp_mqtt_client_publish(
-                client,
-                HASS_ENTITY_TEMPERATURE_DISCOVERY_TOPIC,
-                HASS_ENTITY_TEMPERATURE_DISCOVERY_DATA,
-                0, 0, 0
-            );
-            ESP_LOGI(TAG, "Publish humidity discovery");
-            msg_id = esp_mqtt_client_publish(
-                client,
-                HASS_ENTITY_HUMIDITY_DISCOVERY_TOPIC,
-                HASS_ENTITY_HUMIDITY_DISCOVERY_DATA,
-                0, 0, 0
-            );
-            ESP_LOGD(TAG, "sent publish successful, msg_id=%d", msg_id);
+            publish_discovery("HUMIDITY");
+            publish_discovery("TEMPERATURE");
+
             // Declare the MQTT module as enabled
             xEventGroupSetBits(
                 main_event_group,
@@ -98,23 +125,23 @@ esp_err_t mqtt_stop() {
 }
 
 esp_err_t mqtt_publish_temperature(char *value_str) {
-    esp_mqtt_client_publish(
-        client,
-        HASS_ENTITY_TEMPERATURE_PUBLISH_TOPIC,
-        value_str,
-        0, 0, 1
-    );
+//    esp_mqtt_client_publish(
+//        client,
+//        HASS_ENTITY_TEMPERATURE_PUBLISH_TOPIC,
+//        value_str,
+//        0, 0, 1
+//    );
 
     return ESP_OK;
 }
 
 esp_err_t mqtt_publish_humidity(char *value_str) {
-    esp_mqtt_client_publish(
-        client,
-        HASS_ENTITY_HUMIDITY_PUBLISH_TOPIC,
-        value_str,
-        0, 0, 1
-    );
+//     esp_mqtt_client_publish(
+//         client,
+//         HASS_ENTITY_HUMIDITY_PUBLISH_TOPIC,
+//         value_str,
+//         0, 0, 1
+//     );
 
     return ESP_OK;
 }

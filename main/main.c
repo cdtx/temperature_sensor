@@ -115,7 +115,7 @@ void i2c_master_delete() {
 
 void go_deep_sleep(void) {
     ESP_LOGI(TAG, "Entering deep sleep");
-    // Stop MQTT and WiFi before entering deep sleep
+    // Stop i2c MQTT and WiFi before entering deep sleep
     i2c_master_delete();
     mqtt_stop();
     wifi_stop();
@@ -145,12 +145,8 @@ void app_main()
     // Init spiffs
     spiffs_init();
 
-    go_deep_sleep();
-    
     // Init esp8266 i2c driver
     i2c_master_init();
-
-    go_deep_sleep();
 
     // Init temperature acquisition
     am2320_init(PROJECT_I2C_MASTER_ID);
@@ -159,9 +155,9 @@ void app_main()
     ret = am2320_read_values(&temperature, &humidity);
     if(ret != ESP_OK) {
         ESP_LOGE(TAG, "am2320_read_values failed");
-        go_deep_sleep();
+        // go_deep_sleep();
     }
-    // If here; the sensor read succeeds, prepare sending it.
+    // If here, the sensor read succeeds, prepare sending it.
     // Initialize tcpip stack, only once
     tcpip_adapter_init();
     // Initialize event loop, only once
