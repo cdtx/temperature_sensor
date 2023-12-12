@@ -14,6 +14,10 @@
 
 #include "project_config.h"
 
+#define DISCOVERY_TOPIC_SIZE        100
+#define DISCOVERY_TOPIC_DATA_SIZE   500
+#define PUBLISH_TOPIC_SIZE          100
+
 static const char *TAG = "mqtt.c";
 
 static EventGroupHandle_t main_event_group;
@@ -24,8 +28,8 @@ static void publish_discovery(const char *entity_name) {
     char file_name[40];
     FILE *discovery_file_hdl;
 
-    char discovery_topic[100];
-    char discovery_data[500];
+    char discovery_topic[DISCOVERY_TOPIC_SIZE];
+    char discovery_data[DISCOVERY_TOPIC_DATA_SIZE];
 
     // Read discovery topic in file
     sprintf(file_name, "/spiffs/%s_DT", entity_name);
@@ -59,6 +63,23 @@ static void publish_discovery(const char *entity_name) {
         0, 0, 0
     );
     ESP_LOGD(TAG, "sent publish successful, msg_id=%d", msg_id);
+}
+
+static esp_err_t read_publish_topic(const char *entity_name, char *publish_topic) {
+    char file_name[40];
+    FILE *file_hdl;
+
+    sprintf(file_name, "/spiffs/%s_PT", entity_name);
+    file_hdl = fopen(file_name, "r");
+    if(file_hdl == NULL) {
+        ESP_LOGE(TAG, "Error opening file [%s]", file_name);
+        return ESP_FAIL;
+    }
+
+    fgets(publish_topic, PUBLISH_TOPIC_SIZE, file_hdl);
+    ESP_LOGI(TAG, "%s publish topic: %s", entity_name, publish_topic);
+
+    return ESP_OK;
 }
 
 static void mqtt_event_handler_cb(
@@ -124,25 +145,32 @@ esp_err_t mqtt_stop() {
     return esp_mqtt_client_stop(client);   
 }
 
-esp_err_t mqtt_publish_temperature(char *value_str) {
-//    esp_mqtt_client_publish(
-//        client,
-//        HASS_ENTITY_TEMPERATURE_PUBLISH_TOPIC,
-//        value_str,
-//        0, 0, 1
-//    );
+static esp_err_t mqtt_publish_value(const char *entity_name, char *value_str) {
+    esp_err_t ret;
+    char publish_topic[PUBLISH_TOPIC_SIZE];
+
+    ret = read_publish_topic(entity_name, publish_topic);
+    if(ret != ESP_OK) {
+        ESP_LOGE(TAG, "Unable to read %s discovery topic", entity_name);
+        return ESP_FAIL;
+    }
+
+    // Actually publish
+    esp_mqtt_client_publish(
+        client,
+        publish_topic,
+        value_str,
+        0, 0, 1
+    );
 
     return ESP_OK;
 }
 
-esp_err_t mqtt_publish_humidity(char *value_str) {
-//     esp_mqtt_client_publish(
-//         client,
-//         HASS_ENTITY_HUMIDITY_PUBLISH_TOPIC,
-//         value_str,
-//         0, 0, 1
-//     );
+esp_err_t mqtt_publish_temperature(char *value_str) {
+    return mqtt_publish_value("TEMPERATURE", value_str);
+}
 
-    return ESP_OK;
+esp_err_t mqtt_publish_humidity(char *value_str) {
+    return mqtt_publish_value("HUMIDITY", value_str);
 }
 

@@ -58,6 +58,10 @@ void am2320_init(i2c_port_t i2c_num) {
     i2c_master_num = i2c_num;
 }
 
+// esp_err_t am2320_write_short(uint8_t address, int16_t value) {
+// 
+// }
+
 esp_err_t am2320_read_values(int16_t *p_temperature, int16_t *p_humidity) {
     esp_err_t ret = ESP_OK;
 

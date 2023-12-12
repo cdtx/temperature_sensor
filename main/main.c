@@ -93,7 +93,8 @@ void i2c_master_init() {
     conf.sda_pullup_en = 1;
     conf.scl_io_num = I2C_MASTER_SCL_IO;
     conf.scl_pullup_en = 1;
-    conf.clk_stretch_tick = 300; // 1000 ticks, Clock stretch is about 210us, you can make changes according to the actual situation.
+    // conf.clk_stretch_tick = 300; // 1000 ticks, Clock stretch is about 210us, you can make changes according to the actual situation.
+    conf.clk_stretch_tick = 1000; // 1000 ticks, Clock stretch is about 210us, you can make changes according to the actual situation.
 
     ESP_ERROR_CHECK(
         i2c_driver_install(
