@@ -158,6 +158,25 @@ void app_main()
         ESP_LOGE(TAG, "am2320_read_values failed");
         // go_deep_sleep();
     }
+
+    // Let am2320 enjoy it's well needed pause...
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+    // Compare values with saved ones
+    if(!am2320_values_changed(temperature, humidity)) {
+        ESP_LOGI(TAG, "Values unchanged");
+        // go_deep_sleep();
+    }
+
+    // Let am2320 enjoy it's well needed pause...
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+    // Save values to the am2320 component
+    ret = am2320_save_values(temperature, humidity);
+    if(ret != ESP_OK) {
+        ESP_LOGW(TAG, "Unable to save data to am2320");
+    }
+
     // If here, the sensor read succeeds, prepare sending it.
     // Initialize tcpip stack, only once
     tcpip_adapter_init();

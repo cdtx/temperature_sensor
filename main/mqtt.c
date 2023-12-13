@@ -77,6 +77,8 @@ static esp_err_t read_publish_topic(const char *entity_name, char *publish_topic
     }
 
     fgets(publish_topic, PUBLISH_TOPIC_SIZE, file_hdl);
+    fclose(file_hdl);
+
     ESP_LOGI(TAG, "%s publish topic: %s", entity_name, publish_topic);
 
     return ESP_OK;

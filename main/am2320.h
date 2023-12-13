@@ -21,4 +21,16 @@ void am2320_init(i2c_port_t i2c_num);
  */
 esp_err_t am2320_read_values(int16_t *temperature, int16_t *humidity);
 
+/**
+ *  \brief Compare given values to those stored inside the component
+ *  \return false (unchanged), true (changed)
+ */
+bool am2320_values_changed(int16_t temperature, int16_t humidity);
+
+/**
+ * \brief Save data to the component internal memory
+ * \return ESP_OK if ok
+ */
+esp_err_t am2320_save_values(int16_t temperature, int16_t humidity);
+
 #endif

@@ -10,6 +10,9 @@
 
 #include "am2320.h"
 
+#define AM2320_READ_DATA_INDEX      0x00
+#define AM2320_STORE_DATA_INDEX     0x08
+
 static const char *TAG = "am2320";
 static i2c_port_t i2c_master_num;
 
@@ -58,25 +61,20 @@ void am2320_init(i2c_port_t i2c_num) {
     i2c_master_num = i2c_num;
 }
 
-// esp_err_t am2320_write_short(uint8_t address, int16_t value) {
-// 
-// }
-
-esp_err_t am2320_read_values(int16_t *p_temperature, int16_t *p_humidity) {
+static esp_err_t am2320_read_4_bytes(uint8_t address, uint8_t *data_read) {
     esp_err_t ret = ESP_OK;
 
     i2c_cmd_handle_t cmd;
     uint8_t data_write[4] = {0x00};
-    uint8_t data_read[8] = {0,0,0,0,0,0,0,0};
-    uint16_t crc;
+    uint16_t crc, crc_compute;
+
+    am2320_wakeup();
 
     // Set data to write
     data_write[0] = AM2320_I2C_ADDRESS_WRITE;   // Device Address
-    data_write[1] = 0x03;   // Read
-    data_write[2] = 0x00;   // Index to read at
-    data_write[3] = 0x04;   // Size to read
-
-    am2320_wakeup();
+    data_write[1] = 0x03;                       // Read
+    data_write[2] = address;                    // Index to read at
+    data_write[3] = 0x04;                       // Size to read
 
     cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
@@ -94,7 +92,7 @@ esp_err_t am2320_read_values(int16_t *p_temperature, int16_t *p_humidity) {
         AM2320_I2C_ADDRESS_READ, 
         I2C_MASTER_ACK
     );
-    i2c_master_read(cmd, data_read, sizeof(data_read), I2C_MASTER_LAST_NACK);
+    i2c_master_read(cmd, data_read, 8, I2C_MASTER_LAST_NACK);
     i2c_master_stop(cmd);
     ret |= i2c_master_cmd_begin(i2c_master_num, cmd, 1000 / portTICK_RATE_MS);
     ESP_ERROR_CHECK_WITHOUT_ABORT(ret);
@@ -114,9 +112,20 @@ esp_err_t am2320_read_values(int16_t *p_temperature, int16_t *p_humidity) {
 
     // Check CRC (low byte first in frame)
     crc = (data_read[7]<<8) + (data_read[6]);
-    if(crc != compute_crc(data_read, 6)) {
+    crc_compute = compute_crc(data_read, 6);
+    if(crc != crc_compute) {
+        ESP_LOGE(TAG, "CR check failed [read:%.4x] [computed:%.4x]", crc, crc_compute);
         return ESP_FAIL;
     }
+
+    return ret;
+}
+
+esp_err_t am2320_read_values(int16_t *p_temperature, int16_t *p_humidity) {
+    esp_err_t ret;
+    uint8_t data_read[8] = {0,0,0,0,0,0,0,0};
+
+    ret = am2320_read_4_bytes(AM2320_READ_DATA_INDEX, data_read);
 
     // Leave p_value unchanged if an error occurs
     if (ret == ESP_OK) {
@@ -127,3 +136,29 @@ esp_err_t am2320_read_values(int16_t *p_temperature, int16_t *p_humidity) {
     return ret;
 }
 
+bool am2320_values_changed(int16_t temperature, int16_t humidity) {
+    /* Read the previous values */
+    esp_err_t ret;
+    uint8_t data_read[8] = {0,0,0,0,0,0,0,0};
+    int16_t temperature_saved;
+    int16_t humidity_saved;
+
+    ret = am2320_read_4_bytes(AM2320_STORE_DATA_INDEX, data_read);
+    if(ret != ESP_OK) {
+        ESP_LOGE(TAG, "Error reading stored values");
+        return true;
+    }
+
+    humidity_saved = (data_read[2]<<8) + (data_read[3]);
+    temperature_saved = (data_read[4]<<8) + (data_read[5]);
+    ESP_LOGI(TAG, "Read stored values: temperature:%d, humidity:%d", temperature_saved, humidity_saved);
+
+    if((temperature != temperature_saved) || (humidity != humidity_saved)) {
+        return true;
+    }
+    return false;
+}
+
+esp_err_t am2320_save_values(int16_t temperature, int16_t humidity) {
+    return ESP_OK;
+}
