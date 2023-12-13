@@ -11,7 +11,7 @@
 #include "am2320.h"
 
 #define AM2320_READ_DATA_INDEX      0x00
-#define AM2320_STORE_DATA_INDEX     0x08
+#define AM2320_STORE_DATA_INDEX     0x10
 
 static const char *TAG = "am2320";
 static i2c_port_t i2c_master_num;
@@ -160,5 +160,72 @@ bool am2320_values_changed(int16_t temperature, int16_t humidity) {
 }
 
 esp_err_t am2320_save_values(int16_t temperature, int16_t humidity) {
+    esp_err_t ret = ESP_OK;
+    i2c_cmd_handle_t cmd;
+    uint8_t data_write[10];
+    uint8_t data_read[5];
+    uint16_t crc;
+
+    am2320_wakeup();
+
+    data_write[0] = AM2320_I2C_ADDRESS_WRITE;
+    data_write[1] = 0x10;                       // Write instruction
+    data_write[2] = AM2320_STORE_DATA_INDEX;    // Starting index
+    data_write[3] = 4;                          // Size
+    data_write[4] = (uint8_t)((humidity & 0xFF00) >> 8);
+    data_write[5] = (uint8_t)((humidity & 0x00FF) >> 0);
+    data_write[6] = (uint8_t)((temperature & 0xFF00) >> 8);
+    data_write[7] = (uint8_t)((temperature & 0x00FF) >> 0);
+
+    crc = compute_crc(&data_write[1], 7);       // Compute CRC (address not included)
+    data_write[8] = (uint8_t)((crc & 0x00FF) >> 0);
+    data_write[9] = (uint8_t)((crc & 0xFF00) >> 8);
+
+    ESP_LOGD(TAG, "Read to write: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x", 
+            data_write[0],
+            data_write[1],
+            data_write[2],
+            data_write[3],
+            data_write[4],
+            data_write[5],
+            data_write[6],
+            data_write[7],
+            data_write[8],
+            data_write[9]
+    );
+
+    cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write(cmd, data_write, 10, I2C_MASTER_ACK);
+    i2c_master_stop(cmd);
+
+    ret |= i2c_master_cmd_begin(i2c_master_num, cmd, 1000 / portTICK_RATE_MS);
+    i2c_cmd_link_delete(cmd);
+
+    ESP_ERROR_CHECK_WITHOUT_ABORT(ret);
+
+    /* Read response from the sensor */
+    cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, 
+        AM2320_I2C_ADDRESS_READ, 
+        I2C_MASTER_ACK
+    );
+    i2c_master_read(cmd, data_read, 5, I2C_MASTER_LAST_NACK);
+    i2c_master_stop(cmd);
+    ret |= i2c_master_cmd_begin(i2c_master_num, cmd, 1000 / portTICK_RATE_MS);
+    ESP_ERROR_CHECK_WITHOUT_ABORT(ret);
+
+    i2c_cmd_link_delete(cmd);
+
+    ESP_LOGD(TAG, "Read data: 0x%x 0x%x 0x%x 0x%x", 
+            data_read[0],
+            data_read[1],
+            data_read[2],
+            data_read[3]
+    );
+
+    /* Nothing done with this result so far... */
+
     return ESP_OK;
 }

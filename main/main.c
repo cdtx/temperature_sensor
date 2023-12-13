@@ -116,10 +116,6 @@ void i2c_master_delete() {
 
 void go_deep_sleep(void) {
     ESP_LOGI(TAG, "Entering deep sleep");
-    // Stop i2c MQTT and WiFi before entering deep sleep
-    i2c_master_delete();
-    mqtt_stop();
-    wifi_stop();
     // Enter deep sleep, the device resets on wake-up
     // Radio calibration will not be done after the deep-sleep wakeup. This will lead to weaker current.
     esp_deep_sleep_set_rf_option(2);
@@ -156,7 +152,7 @@ void app_main()
     ret = am2320_read_values(&temperature, &humidity);
     if(ret != ESP_OK) {
         ESP_LOGE(TAG, "am2320_read_values failed");
-        // go_deep_sleep();
+        go_deep_sleep();
     }
 
     // Let am2320 enjoy it's well needed pause...
@@ -165,7 +161,7 @@ void app_main()
     // Compare values with saved ones
     if(!am2320_values_changed(temperature, humidity)) {
         ESP_LOGI(TAG, "Values unchanged");
-        // go_deep_sleep();
+        go_deep_sleep();
     }
 
     // Let am2320 enjoy it's well needed pause...
