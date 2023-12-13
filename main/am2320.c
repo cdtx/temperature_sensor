@@ -136,27 +136,32 @@ esp_err_t am2320_read_values(int16_t *p_temperature, int16_t *p_humidity) {
     return ret;
 }
 
-bool am2320_values_changed(int16_t temperature, int16_t humidity) {
+uint8_t am2320_values_changed(int16_t temperature, int16_t humidity) {
     /* Read the previous values */
-    esp_err_t ret;
+    uint8_t ret = 0;
+    esp_err_t res;
     uint8_t data_read[8] = {0,0,0,0,0,0,0,0};
     int16_t temperature_saved;
     int16_t humidity_saved;
 
-    ret = am2320_read_4_bytes(AM2320_STORE_DATA_INDEX, data_read);
-    if(ret != ESP_OK) {
+    res = am2320_read_4_bytes(AM2320_STORE_DATA_INDEX, data_read);
+    if(res != ESP_OK) {
         ESP_LOGE(TAG, "Error reading stored values");
-        return true;
+        return AM2320_HUMIDITY_CHANGED | AM2320_TEMPERATURE_CHANGED;
     }
 
     humidity_saved = (data_read[2]<<8) + (data_read[3]);
     temperature_saved = (data_read[4]<<8) + (data_read[5]);
     ESP_LOGI(TAG, "Read stored values: temperature:%d, humidity:%d", temperature_saved, humidity_saved);
 
-    if((temperature != temperature_saved) || (humidity != humidity_saved)) {
-        return true;
+    if(temperature != temperature_saved) {
+        ret |= AM2320_TEMPERATURE_CHANGED;
     }
-    return false;
+       
+    if(humidity != humidity_saved) {
+        ret |= AM2320_HUMIDITY_CHANGED;
+    }
+    return ret;
 }
 
 esp_err_t am2320_save_values(int16_t temperature, int16_t humidity) {

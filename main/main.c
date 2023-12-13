@@ -114,10 +114,19 @@ void i2c_master_delete() {
     i2c_driver_delete(PROJECT_I2C_MASTER_ID);
 }
 
-void go_deep_sleep(void) {
+void go_deep_sleep(bool kill_i2c, bool kill_wifi, bool kill_mqtt) {
     ESP_LOGI(TAG, "Entering deep sleep");
     // Enter deep sleep, the device resets on wake-up
     // Radio calibration will not be done after the deep-sleep wakeup. This will lead to weaker current.
+    if(kill_i2c == true) {
+        i2c_master_delete();
+    }
+    if(kill_wifi) {
+        wifi_stop();
+    }
+    if(kill_mqtt) {
+        mqtt_stop();
+    }
     esp_deep_sleep_set_rf_option(2);
     esp_deep_sleep(DEEP_SLEEP_TIME_US);
 }
@@ -126,6 +135,7 @@ void app_main()
 {
     esp_err_t ret;
     int16_t temperature, humidity;
+    uint8_t values_changed;
     char value_str[10];
     EventBits_t uxBits;
 
@@ -152,16 +162,17 @@ void app_main()
     ret = am2320_read_values(&temperature, &humidity);
     if(ret != ESP_OK) {
         ESP_LOGE(TAG, "am2320_read_values failed");
-        go_deep_sleep();
+        go_deep_sleep(true, false, false);
     }
 
     // Let am2320 enjoy it's well needed pause...
     vTaskDelay(1000 / portTICK_PERIOD_MS);
 
     // Compare values with saved ones
-    if(!am2320_values_changed(temperature, humidity)) {
+    values_changed = am2320_values_changed(temperature, humidity);
+    if(values_changed == AM2320_NOTHING_CHANGED) {
         ESP_LOGI(TAG, "Values unchanged");
-        go_deep_sleep();
+        go_deep_sleep(true, false, false);
     }
 
     // Let am2320 enjoy it's well needed pause...
@@ -195,7 +206,7 @@ void app_main()
 
     if((uxBits & PROJECT_WIFI_ENABLED) != PROJECT_WIFI_ENABLED) {
         ESP_LOGE(TAG, "Unable to connect WiFi");
-        go_deep_sleep();
+        go_deep_sleep(true, true, false);
     }
 
     // Manage MQTT init
@@ -212,33 +223,43 @@ void app_main()
 
     if((uxBits & PROJECT_MQTT_ENABLED) != PROJECT_MQTT_ENABLED) {
         ESP_LOGE(TAG, "Unable to connect MQTT");
-        go_deep_sleep();
+        go_deep_sleep(true, true, true);
     }
 
     ESP_LOGD(TAG, "Wifi and MQTT initialized");
 
-    if((temperature >= TEMPERATURE_MIN) && (temperature <= TEMPERATURE_MAX)) {
-        // Temperature
-        value_to_string(temperature, value_str, sizeof(value_str));
-        ESP_LOGI(TAG, "Temperature value: %s", value_str);
-        mqtt_publish_temperature(value_str);
+    if(values_changed & AM2320_TEMPERATURE_CHANGED) {
+        if((temperature >= TEMPERATURE_MIN) && (temperature <= TEMPERATURE_MAX)) {
+            // Temperature
+            value_to_string(temperature, value_str, sizeof(value_str));
+            ESP_LOGI(TAG, "Temperature value: %s", value_str);
+            mqtt_publish_temperature(value_str);
+        }
+        else {
+            ESP_LOGE(TAG, "Temperature out of bounds (%d)", temperature);
+        }
     }
     else {
-        ESP_LOGE(TAG, "Temperature out of bounds (%d)", temperature);
+        ESP_LOGI(TAG, "Temperature value unchanged");
     }
 
-    if((humidity >= HUMIDITY_MIN) && (humidity <= HUMIDITY_MAX)) {
-        // Humidity
-        value_to_string(humidity, value_str, sizeof(value_str));
-        ESP_LOGI(TAG, "Humidity value: %s", value_str);
-        mqtt_publish_humidity(value_str);
+    if(values_changed & AM2320_HUMIDITY_CHANGED) {
+        if((humidity >= HUMIDITY_MIN) && (humidity <= HUMIDITY_MAX)) {
+            // Humidity
+            value_to_string(humidity, value_str, sizeof(value_str));
+            ESP_LOGI(TAG, "Humidity value: %s", value_str);
+            mqtt_publish_humidity(value_str);
+        }
+        else {
+            ESP_LOGE(TAG, "Humidity out of bounds (%d)", humidity);
+        }
     }
     else {
-        ESP_LOGE(TAG, "Humidity out of bounds (%d)", humidity);
+        ESP_LOGI(TAG, "Humidity value unchanged");
     }
 
     vEventGroupDelete(main_event_group);
 
-    go_deep_sleep();
+    go_deep_sleep(true, true, true);
 }
 
