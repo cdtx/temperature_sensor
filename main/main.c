@@ -114,6 +114,33 @@ void i2c_master_delete() {
     i2c_driver_delete(PROJECT_I2C_MASTER_ID);
 }
 
+static void rst_flag_set(char *value) {
+    FILE *fout;
+
+    fout = fopen("/spiffs/rst_flag", "w+");
+    if(fout == NULL) {
+        ESP_LOGE(TAG, "File not created");
+        return;
+    }
+    fprintf(fout, value);
+    fclose(fout);
+}
+
+// value can be :
+// - S: reset was from a sleep
+// - R: reset was from a reset...
+static void rst_flag_get(char *value) {
+    FILE *fin;
+
+    fin = fopen("/spiffs/rst_flag", "r");
+    if(fin == NULL) {
+        snprintf(value, 2, "R");
+        return;
+    }
+    fgets(value, 2, fin);
+    fclose(fin);
+}
+
 void go_deep_sleep(bool kill_i2c, bool kill_wifi, bool kill_mqtt) {
     ESP_LOGI(TAG, "Entering deep sleep");
     // Enter deep sleep, the device resets on wake-up
@@ -121,12 +148,15 @@ void go_deep_sleep(bool kill_i2c, bool kill_wifi, bool kill_mqtt) {
     if(kill_i2c == true) {
         i2c_master_delete();
     }
-    if(kill_wifi) {
-        wifi_stop();
-    }
     if(kill_mqtt) {
         mqtt_stop();
     }
+    if(kill_wifi) {
+        wifi_stop();
+    }
+
+    rst_flag_set("S");
+
     esp_deep_sleep_set_rf_option(2);
     esp_deep_sleep(DEEP_SLEEP_TIME_US);
 }
@@ -138,6 +168,9 @@ void app_main()
     uint8_t values_changed;
     char value_str[10];
     EventBits_t uxBits;
+
+    char rst_flag[2];
+    bool publish_discovery;
 
     ESP_LOGI(TAG, "[APP] Startup..");
     ESP_LOGI(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
@@ -151,6 +184,13 @@ void app_main()
 
     // Init spiffs
     spiffs_init();
+
+    // Very early, read the rst_flag
+    rst_flag_get(rst_flag);
+    ESP_LOGI(TAG, "Early read of rst_flag: %s", rst_flag);
+
+    // Set the rst_flag to R, this if user resets now, it's detected
+    rst_flag_set("R");
 
     // Init esp8266 i2c driver
     i2c_master_init();
@@ -201,7 +241,7 @@ void app_main()
         PROJECT_WIFI_ENABLED,
         pdFALSE,
         pdTRUE,
-        2000 / portTICK_PERIOD_MS   // Give the WiFi 2s to become ready
+        5000 / portTICK_PERIOD_MS   // Give the WiFi 2s to become ready
     );
 
     if((uxBits & PROJECT_WIFI_ENABLED) != PROJECT_WIFI_ENABLED) {
@@ -210,7 +250,8 @@ void app_main()
     }
 
     // Manage MQTT init
-    mqtt_init(main_event_group);
+    publish_discovery = rst_flag[0] == 'R';
+    mqtt_init(main_event_group, publish_discovery);
 
     ESP_LOGD(TAG, "Wait for MQTT init");
     uxBits = xEventGroupWaitBits(
@@ -218,7 +259,7 @@ void app_main()
         PROJECT_MQTT_ENABLED,
         pdFALSE,
         pdTRUE,
-        100 / portTICK_PERIOD_MS    // Give mqtt 100ms to be established
+        1000 / portTICK_PERIOD_MS    // Give mqtt 1s to be established
     );
 
     if((uxBits & PROJECT_MQTT_ENABLED) != PROJECT_MQTT_ENABLED) {
@@ -259,6 +300,8 @@ void app_main()
     }
 
     vEventGroupDelete(main_event_group);
+
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
 
     go_deep_sleep(true, true, true);
 }

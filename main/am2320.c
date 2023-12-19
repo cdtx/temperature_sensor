@@ -138,7 +138,7 @@ esp_err_t am2320_read_values(int16_t *p_temperature, int16_t *p_humidity) {
 
 uint8_t am2320_values_changed(int16_t temperature, int16_t humidity) {
     /* Read the previous values */
-    uint8_t ret = 0;
+    uint8_t ret = AM2320_NOTHING_CHANGED;
     esp_err_t res;
     uint8_t data_read[8] = {0,0,0,0,0,0,0,0};
     int16_t temperature_saved;

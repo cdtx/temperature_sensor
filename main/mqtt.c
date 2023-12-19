@@ -22,6 +22,7 @@ static const char *TAG = "mqtt.c";
 
 static EventGroupHandle_t main_event_group;
 static esp_mqtt_client_handle_t client;
+static bool g_publish_discovery = true;
 
 static void publish_discovery(const char *entity_name) {
     int msg_id;
@@ -97,8 +98,13 @@ static void mqtt_event_handler_cb(
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
             // Build and publish home assistant discovery
-            publish_discovery("HUMIDITY");
-            publish_discovery("TEMPERATURE");
+            if(g_publish_discovery == true) {
+                publish_discovery("HUMIDITY");
+                publish_discovery("TEMPERATURE");
+            }
+            else {
+                ESP_LOGI(TAG, "Not publishing discovery");
+            }
 
             // Declare the MQTT module as enabled
             xEventGroupSetBits(
@@ -124,8 +130,10 @@ static void mqtt_event_handler_cb(
     }
 }
 
-esp_err_t mqtt_init(EventGroupHandle_t event_group) {
+esp_err_t mqtt_init(EventGroupHandle_t event_group, bool _publish_discovery) {
     main_event_group = event_group;
+
+    g_publish_discovery = _publish_discovery;
 
     esp_mqtt_client_config_t mqtt_cfg = {
         .uri = CONFIG_PROJECT_MQTT_BROKER_URL,
